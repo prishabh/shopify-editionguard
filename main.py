@@ -12,8 +12,11 @@ load_dotenv()
 
 SHOP_NAME = os.getenv("SHOPIFY_SHOP_NAME")
 ACCESS_TOKEN = os.getenv("SHOPIFY_ACCESS_TOKEN")
+AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY")
+AWS_SECRET_KEY = os.getenv("AWS_SECRET_KEY")
 S3_BUCKET = os.getenv("S3_BUCKET_NAME")
 S3_REGION = os.getenv("S3_BUCKET_REGION")
+LOCAL_EBOOKS_PATH = os.getenv("LOCAL_EBOOKS_PATH")
 
 HEADERS = {
     "Content-Type": "application/json",
@@ -21,6 +24,17 @@ HEADERS = {
 }
 
 BASE_URL = f"https://{SHOP_NAME}.myshopify.com/admin/api/2024-04"
+
+# Configure AWS CLI using read credentials
+os.system(f"aws configure set aws_access_key_id {AWS_ACCESS_KEY}")
+os.system(f"aws configure set aws_secret_access_key {AWS_SECRET_KEY}")
+os.system(f"aws configure set default.region {S3_REGION}")
+os.system('aws configure set output json')
+
+# Download ebooks from S3 using AWS CLI
+print('Downloading ebooks from S3...')
+cmd = f"aws s3 sync 's3://{S3_BUCKET}/' '{LOCAL_EBOOKS_PATH}'"
+os.system(cmd)
 
 def get_all_products():
     products = []
@@ -71,8 +85,8 @@ def set_metafield(product_id, value, namespace="editionguard", key="resource_id"
     else:
         print(f"Failed to save metafield: {resp.status_code} — {resp.text}")
 
-def get_s3_url(eisbn):
-    return f"https://{S3_BUCKET}.s3.{S3_REGION}.amazonaws.com/{eisbn}.pdf"
+def get_ebook_local_path(eisbn):
+    return f"{LOCAL_EBOOKS_PATH}/{eisbn}.pdf"
 
 def main():
     print("Fetching Shopify products...")
@@ -111,7 +125,7 @@ def main():
                     continue
 
                 print(f"Creating EditionGuard product for ISBN '{ebook_isbn}'")
-                res = editionguard_create_product(product['title'], ebook_isbn, local_pdf_path='/Users/rishabh/Desktop/ebook.pdf')
+                res = editionguard_create_product(product['title'], ebook_isbn, get_ebook_local_path(ebook_isbn))
                 set_metafield(product_id, res.get("resource_id"))
             else:
                 print(f"EditionGuard resource ID found: {resource_id}")

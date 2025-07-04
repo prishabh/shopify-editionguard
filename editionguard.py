@@ -8,7 +8,7 @@ EDITIONGUARD_API_KEY = os.getenv("EDITIONGUARD_API_KEY")
 EDITIONGUARD_API_URL = "https://app.editionguard.com/api/v2"
 
 def editionguard_product_exists(resource_id):
-    """Check if a product with the given SKU exists on EditionGuard."""
+    """Check if a product with the given Resource Id exists on EditionGuard."""
     url = f"{EDITIONGUARD_API_URL}/book/{resource_id}"
     HEADERS = {
         "Authorization": f"Bearer {EDITIONGUARD_API_KEY}",
