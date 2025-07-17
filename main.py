@@ -15,6 +15,7 @@ ACCESS_TOKEN = os.getenv("SHOPIFY_ACCESS_TOKEN")
 AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY")
 AWS_SECRET_KEY = os.getenv("AWS_SECRET_KEY")
 S3_BUCKET = os.getenv("S3_BUCKET_NAME")
+S3_EBOOKS_PATH = os.getenv("S3_EBOOKS_PATH")
 S3_REGION = os.getenv("S3_BUCKET_REGION")
 LOCAL_EBOOKS_PATH = os.getenv("LOCAL_EBOOKS_PATH")
 
@@ -33,7 +34,7 @@ os.system('aws configure set output json')
 
 # Download ebooks from S3 using AWS CLI
 print('Downloading ebooks from S3...')
-cmd = f"aws s3 sync 's3://{S3_BUCKET}/' '{LOCAL_EBOOKS_PATH}'"
+cmd = f"aws s3 sync 's3://{S3_BUCKET}/{S3_EBOOKS_PATH}/' '{LOCAL_EBOOKS_PATH}'"
 os.system(cmd)
 
 def get_all_products():
@@ -80,9 +81,7 @@ def set_metafield(product_id, value, namespace="editionguard", key="resource_id"
         }
     }
     resp = requests.post(url, json=data, headers=HEADERS)
-    if resp.status_code in [200, 201]:
-        print(f"Saved metafield '{namespace}.{key}' = {value}")
-    else:
+    if resp.status_code not in [200, 201]:
         print(f"Failed to save metafield: {resp.status_code} — {resp.text}")
 
 def get_ebook_local_path(eisbn):
@@ -102,7 +101,7 @@ def main():
         product_id = product["id"]
         plain_text = BeautifulSoup(product.get("body_html", ""), "html.parser").get_text(separator=" ").strip()
         isbn_match = re.search(r"ISBN \(eBook\):\s*([\d\-]{10,})", plain_text)
-        ebook_isbn = isbn_match.group(1) if isbn_match else None
+        ebook_isbn = isbn_match.group(1).replace("-", "") if isbn_match else None
 
         metafields = get_metafields(product_id)
         resource_id = get_metafield_value(metafields)
@@ -114,24 +113,19 @@ def main():
                 continue
 
             total_ebooks += 1
-            print(f"\nProcessing eBook variant: {product['title']} — Product Id: {product_id}")
+            #print(f"\nProcessing eBook variant: {product['title']} — Product Id: {product_id}")
 
             if not resource_id:
-                print(f"No EditionGuard resource ID found for product '{product['title']}'")
-                print(f"Creating EditionGuard product for Product Id '{product_id}'")
-
                 if not ebook_isbn:
                     print(f"Could not extract ISBN (eBook) from product '{product['title']}'")
                     continue
 
-                print(f"Creating EditionGuard product for ISBN '{ebook_isbn}'")
                 res = editionguard_create_product(product['title'], ebook_isbn, get_ebook_local_path(ebook_isbn))
-                set_metafield(product_id, res.get("resource_id"))
+                if res is not None:
+                    resource_id = res.get("resource_id")
+                    set_metafield(product_id, res.get("resource_id"))
             else:
-                print(f"EditionGuard resource ID found: {resource_id}")
-                if editionguard_product_exists(resource_id):
-                    print(f"EditionGuard product exists for Product Id '{product_id}'")
-                else:
+                if not editionguard_product_exists(resource_id):
                     print(f"EditionGuard product MISSING for Product Id '{product_id}' – check for sync issues")
 
     print(f"\nTotal eBook variants processed: {total_ebooks}")

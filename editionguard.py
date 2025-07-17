@@ -30,6 +30,11 @@ def editionguard_create_product(title, ebook_isbn, local_pdf_path):
         "Authorization": f"Bearer {EDITIONGUARD_API_KEY}",
     }
 
+    # Check if local file exists
+    if not os.path.exists(local_pdf_path):
+        print(f"Local PDF file does not exist: {local_pdf_path} and title: {title}")
+        return None
+
     files = {
         "resource": (os.path.basename(local_pdf_path), open(local_pdf_path, "rb"), "application/pdf")
     }
@@ -39,17 +44,38 @@ def editionguard_create_product(title, ebook_isbn, local_pdf_path):
         "isbn13": ebook_isbn
     }
 
-    print(f"Uploading: {title} with ISBN {ebook_isbn} to EditionGuard...")
-
     try:
         response = requests.post(url, headers=headers, files=files, data=data)
         if response.status_code in [200, 201]:
-            print(f"Created EditionGuard book: {title}")
             return response.json()
         else:
-            print(f"Failed to create book: {response.status_code} — {response.text}")
+            print(f"Failed to create book {title}: {response.status_code} — {response.text}")
             return None
     except requests.exceptions.RequestException as e:
         print(f"Error creating book: {e}")
         return None
 
+def editionguard_send_email(resource_id, email, title):
+    url = f"{EDITIONGUARD_API_URL}/deliver-book-link"
+    headers = {
+        "Authorization": f"Bearer {EDITIONGUARD_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "resource_id": resource_id,
+        "email": email
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+
+        if response.status_code in [200, 201]:
+            return {"status": "sent", "email": email, "title": title}
+        else:
+            print(f"Failed to send email to {email} (resource_id {resource_id})")
+            print(f"Status: {response.status_code}, Body: {response.text}")
+            return None
+
+    except requests.exceptions.RequestException as e:
+        print(f"Error sending email: {e}")
+        return None
